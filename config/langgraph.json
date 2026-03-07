@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "graphs": {
+    "agent": {
+      "path": "src/agent/graph_builder.py:AgentGraphBuilder",
+      "description": "智能文档问答Agent"
+    }
+  },
+  "env": ".env",
+  "dependencies": [
+    "langgraph",
+    "langchain",
+    "langchain-openai",
+    "fastapi",
+    "pymilvus"
+  ],
+  "python_version": "3.10",
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  }
+}
