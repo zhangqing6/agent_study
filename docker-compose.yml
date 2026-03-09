@@ -1,4 +1,5 @@
-﻿# 用以下内容替换整个 docker-compose.yml
+﻿version: '3.8'
+
 services:
   etcd:
     container_name: milvus-etcd
@@ -11,19 +12,20 @@ services:
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     networks:
       - langgraph-network
+    restart: unless-stopped
 
   minio:
     container_name: milvus-minio
-    image: minio/minio:latest  # 使用 latest 版本
+    image: minio/minio:latest
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/data
-    command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/data
+    command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -31,19 +33,20 @@ services:
       retries: 3
     networks:
       - langgraph-network
+    restart: unless-stopped
 
   milvus:
     container_name: milvus-standalone
-    image: milvusdb/milvus:v2.4.0  # 使用更新的 2.4.0 版本
+    image: milvusdb/milvus:v2.4.15
     command: ["milvus", "run", "standalone"]
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
-    volumes:
-      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
     ports:
       - "19530:19530"
       - "9091:9091"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/milvus:/var/lib/milvus
     depends_on:
       - "etcd"
       - "minio"
@@ -55,10 +58,11 @@ services:
       retries: 3
     networks:
       - langgraph-network
+    restart: unless-stopped
 
   redis:
     container_name: redis-standalone
-    image: redis:7-alpine
+    image: redis:7.4.2-alpine
     ports:
       - "6379:6379"
     volumes:
@@ -71,6 +75,7 @@ services:
       retries: 3
     networks:
       - langgraph-network
+    restart: unless-stopped
 
 networks:
   langgraph-network:

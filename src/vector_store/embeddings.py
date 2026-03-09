@@ -3,10 +3,14 @@ Embedding 模型封装模块
 支持多种 embedding 模型，提供统一的接口
 """
 
+import os  # 添加 os 模块导入
 from sentence_transformers import SentenceTransformer
 import numpy as np
 from typing import List, Union, Optional
 import logging
+
+# 设置 Hugging Face 镜像源（在文件最前面设置，确保最先执行）
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +29,18 @@ class EmbeddingModel:
                 - embedding_dim: 向量维度
                 - embedding_batch_size: 批处理大小
         """
+        # 再次确保环境变量设置（双重保险，防止被覆盖）
+        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
         self.model_name = config.get("embedding_model", "BAAI/bge-m3")
         self.device = config.get("embedding_device", "cpu")
         self.dim = config.get("embedding_dim", 1024)  # bge-m3 默认 1024 维
         self.batch_size = config.get("embedding_batch_size", 32)
 
         logger.info(f"正在加载 embedding 模型: {self.model_name}")
+        logger.info(f"使用 Hugging Face 镜像源: {os.environ.get('HF_ENDPOINT')}")
+
+        # 加载模型时会自动使用镜像源
         self.model = SentenceTransformer(self.model_name, device=self.device)
         logger.info(f"模型加载完成，向量维度: {self.dim}")
 

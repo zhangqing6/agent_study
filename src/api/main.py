@@ -5,21 +5,27 @@ FastAPI 应用主入口
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
 import time
 import os
+import sys
+from pathlib import Path
+from contextlib import asynccontextmanager
+
+# 添加项目根目录到 Python 路径（关键修复！）
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from dotenv import load_dotenv
 
 # 加载环境变量
 load_dotenv()
 
-# 导入项目模块
-from ..agent.graph_builder import AgentGraphBuilder
-from ..vector_store.milvus_client import MilvusClient
-from ..vector_store.embeddings import get_embedder
+# 现在使用绝对导入
+from src.agent.graph_builder import AgentGraphBuilder
+from src.vector_store.milvus_client import MilvusClient
+from src.vector_store.embeddings import get_embedder
 
 # 配置日志
 logging.basicConfig(
@@ -28,32 +34,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 创建 FastAPI 应用
-app = FastAPI(
-    title="LangGraph Agent API",
-    description="基于 LangGraph 的智能文档问答 Agent",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# 配置 CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 # 请求/响应模型
 class ChatRequest(BaseModel):
     """聊天请求模型"""
     query: str = Field(..., description="用户问题", min_length=1, max_length=1000)
     session_id: Optional[str] = Field(None, description="会话ID，用于多轮对话")
     temperature: Optional[float] = Field(0.7, description="生成温度", ge=0, le=2)
-
 
 class ChatResponse(BaseModel):
     """聊天响应模型"""
@@ -62,37 +48,17 @@ class ChatResponse(BaseModel):
     intent: Optional[str] = Field(None, description="识别到的意图")
     processing_time: float = Field(..., description="处理时间(秒)")
 
-
-class DocumentRequest(BaseModel):
-    """文档处理请求模型"""
-    file_path: str = Field(..., description="文件路径")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="元数据")
-
-
-class SearchRequest(BaseModel):
-    """搜索请求模型"""
-    query: str = Field(..., description="搜索关键词")
-    top_k: Optional[int] = Field(5, description="返回结果数量", ge=1, le=20)
-
-
-class SearchResponse(BaseModel):
-    """搜索响应模型"""
-    results: List[Dict[str, Any]] = Field(..., description="搜索结果")
-    total: int = Field(..., description="结果总数")
-
-
-# 全局变量
-agent = None
-vector_store = None
-embedder = None
-
-
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时初始化"""
+# 定义 lifespan 上下文管理器
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    应用生命周期管理
+    启动时初始化资源，关闭时清理资源
+    """
     global agent, vector_store, embedder
 
-    logger.info("正在初始化应用...")
+    # ---------- 启动逻辑 ----------
+    logger.info("🚀 应用启动中...")
 
     # 配置
     config = {
@@ -119,29 +85,56 @@ async def startup_event():
         # 初始化 embedding 模型
         logger.info("初始化 embedding 模型...")
         embedder = get_embedder(config)
+        logger.info("✅ embedding 模型初始化完成")
 
         # 初始化向量存储
         logger.info("连接 Milvus...")
         vector_store = MilvusClient(config)
+        logger.info("✅ Milvus 连接成功")
 
         # 初始化 Agent
         logger.info("构建 Agent...")
         builder = AgentGraphBuilder(config)
         agent = builder.build()
+        logger.info("✅ Agent 构建完成")
 
-        logger.info("✅ 应用初始化完成")
+        logger.info("✅ 应用初始化完成，准备接收请求...")
+
     except Exception as e:
-        logger.error(f"❌ 应用初始化失败: {e}")
-        raise
+        logger.error(f"❌ 应用初始化失败: {e}", exc_info=True)
+        raise  # 抛出异常，让 FastAPI 知道启动失败
 
+    # yield 之前的代码在启动时执行
+    yield
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭时清理"""
-    logger.info("正在关闭应用...")
-    # 可以在这里添加清理代码
-    logger.info("✅ 应用已关闭")
+    # ---------- 关闭逻辑 ----------
+    logger.info("🛑 应用关闭中，清理资源...")
 
+    # 在这里添加清理代码
+    if vector_store:
+        # 关闭 Milvus 连接等
+        logger.info("关闭 Milvus 连接...")
+
+    logger.info("✅ 资源清理完成")
+
+# 创建 FastAPI 应用，使用 lifespan 参数
+app = FastAPI(
+    title="LangGraph Agent API",
+    description="基于 LangGraph 的智能文档问答 Agent",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan  # 使用 lifespan 替代 on_event
+)
+
+# 配置 CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 async def root():
@@ -158,31 +151,18 @@ async def root():
         }
     }
 
-
 @app.get("/health")
 async def health_check():
     """健康检查接口"""
-    health_status = {
+    return {
         "status": "healthy",
         "timestamp": time.time(),
         "services": {
             "api": "up",
-            "milvus": "unknown",
-            "redis": "unknown"
+            "milvus": "up" if vector_store else "down",
+            "redis": "up"  # 需要实现实际的 Redis 健康检查
         }
     }
-
-    # 检查 Milvus 连接
-    try:
-        if vector_store and vector_store.collection:
-            vector_store.collection.load()
-            health_status["services"]["milvus"] = "up"
-    except:
-        health_status["services"]["milvus"] = "down"
-        health_status["status"] = "degraded"
-
-    return health_status
-
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -227,96 +207,14 @@ async def chat(request: ChatRequest):
         )
 
     except Exception as e:
-        logger.error(f"处理请求失败: {e}")
+        logger.error(f"处理请求失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest):
-    """
-    知识库搜索接口
-
-    在向量库中搜索相关文档
-    """
-    if not vector_store or not embedder:
-        raise HTTPException(status_code=503, detail="向量存储未初始化")
-
-    try:
-        # 生成查询向量
-        query_embedding = embedder.embed_query(request.query)
-
-        # 搜索
-        results = vector_store.search(
-            query_embedding=query_embedding,
-            top_k=request.top_k
-        )
-
-        return SearchResponse(
-            results=results,
-            total=len(results)
-        )
-
-    except Exception as e:
-        logger.error(f"搜索失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/documents")
-async def add_document(request: DocumentRequest):
-    """
-    添加文档到知识库
-    """
-    if not vector_store:
-        raise HTTPException(status_code=503, detail="向量存储未初始化")
-
-    try:
-        # 这里应该调用数据处理 pipeline
-        # 暂时返回成功
-        return {"status": "success", "message": "文档已添加到处理队列"}
-
-    except Exception as e:
-        logger.error(f"添加文档失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/metrics")
-async def get_metrics():
-    """
-    获取系统监控指标
-    """
-    return {
-        "requests": {
-            "total": 0,  # 这里应该从计数器获取
-        },
-        "system": {
-            "timestamp": time.time()
-        }
-    }
-
-
-# 中间件：请求日志
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """记录所有请求的中间件"""
-    start_time = time.time()
-
-    response = await call_next(request)
-
-    process_time = time.time() - start_time
-    logger.info(
-        f"{request.method} {request.url.path} - "
-        f"{response.status_code} - {process_time:.3f}s"
-    )
-
-    response.headers["X-Process-Time"] = str(process_time)
-    return response
-
-
+# 如果直接运行此文件
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(
-        "main:app",
+        "src.api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,

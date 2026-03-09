@@ -1,9 +1,20 @@
 """
-Agent 节点模块
-包含各个功能节点的实现
+Agent 模块
 """
-from .intent import IntentNode
-from .retrieval import RetrievalNode
-from .generation import GenerationNode
+import logging
+from src.agent.graph_builder import AgentGraphBuilder
+from src.agent.state import AgentState
+from src.agent.nodes.intent import IntentNode
+from src.agent.nodes.retrieval import RetrievalNode
+from src.agent.nodes.generation import GenerationNode
+# 配置模块级别的 logger
+logger = logging.getLogger(__name__)
+logger.info("Agent 模块已加载")
 
-__all__ = ["IntentNode", "RetrievalNode", "GenerationNode"]
+__all__ = [
+    "AgentGraphBuilder",
+    "AgentState",
+    "IntentNode",
+    "RetrievalNode",
+    "GenerationNode"
+]

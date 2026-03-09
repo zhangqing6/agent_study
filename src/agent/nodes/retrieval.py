@@ -1,4 +1,9 @@
-﻿from ...vector_store.milvus_client import MilvusClient
+﻿"""
+知识检索节点
+"""
+
+from ..state import AgentState  # 导入状态
+from ...vector_store.milvus_client import MilvusClient
 from ...vector_store.embeddings import get_embedder
 
 
@@ -6,6 +11,7 @@ class RetrievalNode:
     """知识检索节点：从向量库获取相关知识"""
 
     def __init__(self, config: dict):
+        self.config = config
         self.milvus = MilvusClient(config)
         self.embedder = get_embedder(config)
         self.top_k = config.get("retrieval_top_k", 3)

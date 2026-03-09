@@ -1,18 +1,27 @@
-﻿from langchain_openai import ChatOpenAI
+﻿"""
+意图识别节点
+"""
+
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 import json
+import logging
+from ..state import AgentState  # 添加这行导入
 
-
+logger = logging.getLogger(__name__)
 class IntentNode:
     """意图识别节点：判断用户问题是否需要知识检索"""
 
     def __init__(self, config: dict):
+        # 直接硬编码 Ollama 地址，完全绕过环境变量
         self.llm = ChatOpenAI(
-            model=config.get("llm_model", "qwen2.5:7b"),
+            model="qwen2.5:7b",  # 直接指定模型
             temperature=0.1,
-            base_url=config.get("ollama_base_url", "http://localhost:11434/v1"),
-            api_key="ollama"  # Ollama 不需要真实 API key
+            base_url="http://localhost:11435/v1",  # 硬编码正确的地址
+            api_key="ollama",
+            timeout=60
         )
+        logger.info(f"意图识别节点初始化，使用 Ollama 地址: http://localhost:11435/v1")
 
     def __call__(self, state: AgentState) -> dict:
         query = state["query"]

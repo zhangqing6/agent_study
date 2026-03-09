@@ -1,12 +1,16 @@
-﻿from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import InMemorySaver
+﻿"""
+LangGraph 图构建器
+"""
 
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import InMemorySaver
 from .state import AgentState
 from .nodes.intent import IntentNode
 from .nodes.retrieval import RetrievalNode
 from .nodes.generation import GenerationNode
+import logging
 
-
+logger = logging.getLogger(__name__)
 class AgentGraphBuilder:
     """LangGraph 图构建器"""
 
@@ -14,12 +18,22 @@ class AgentGraphBuilder:
         self.config = config
         self.graph = StateGraph(AgentState)
 
+        # 确保配置中包含正确的 Ollama 地址
+        ollama_base_url = "http://localhost:11435/v1"
+        self.config["ollama_base_url"] = ollama_base_url
+        self.config["llm_model"] = "qwen2.5:7b"
+
+        logger.info("初始化 Agent 图构建器")
+        logger.info(f"Ollama 地址: {ollama_base_url}")
+        logger.info(f"LLM 模型: qwen2.5:7b")
+
         # 初始化节点
         self.nodes = {
-            "intent": IntentNode(config),
-            "retrieval": RetrievalNode(config),
-            "generation": GenerationNode(config)
+            "intent": IntentNode(self.config),
+            "retrieval": RetrievalNode(self.config),
+            "generation": GenerationNode(self.config)
         }
+        logger.info(f"已创建 {len(self.nodes)} 个节点: {list(self.nodes.keys())}")
 
     def _add_nodes(self):
         """添加节点"""
