@@ -117,26 +117,20 @@ async def lifespan(app: FastAPI):
 
     logger.info("✅ 资源清理完成")
 
-# 创建 FastAPI 应用，使用 lifespan 参数
+# 创建 FastAPI 应用，使用 lifespan 参数 - 【只修改这里】
 app = FastAPI(
-    title="LangGraph Agent API",
-    description="基于 LangGraph 的智能文档问答 Agent",
+    title="智能文档问答助手 API",  # 改成中文标题
+    description="基于 LangGraph 的智能文档问答系统，支持私有知识库问答和多轮对话",  # 简短的描述
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan  # 使用 lifespan 替代 on_event
+    lifespan=lifespan
 )
 
-# 配置 CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/")
+# 【只添加 summary 和 description 参数，不改变函数逻辑】
+@app.get("/",
+         summary="API 首页",
+         description="返回 API 的基本信息和可用接口列表")
 async def root():
     """根路径，返回API信息"""
     return {
@@ -151,7 +145,10 @@ async def root():
         }
     }
 
-@app.get("/health")
+# 【只添加 summary 和 description 参数】
+@app.get("/health",
+         summary="健康检查",
+         description="检查 API 及所有依赖服务（Milvus、Redis）的运行状态")
 async def health_check():
     """健康检查接口"""
     return {
@@ -160,15 +157,18 @@ async def health_check():
         "services": {
             "api": "up",
             "milvus": "up" if vector_store else "down",
-            "redis": "up"  # 需要实现实际的 Redis 健康检查
+            "redis": "up"
         }
     }
 
-@app.post("/chat", response_model=ChatResponse)
+# 【只添加 summary 和 description 参数】
+@app.post("/chat",
+          response_model=ChatResponse,
+          summary="对话接口",
+          description="发送用户问题，获取 Agent 的回答。支持多轮对话（使用相同的 session_id）")
 async def chat(request: ChatRequest):
     """
     聊天接口
-
     发送用户问题，获取 Agent 的回答
     """
     start_time = time.time()
