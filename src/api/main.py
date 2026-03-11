@@ -5,6 +5,8 @@ FastAPI 应用主入口
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles  # 新增导入
+from fastapi.responses import FileResponse    # 新增导入
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import logging
@@ -34,7 +36,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 请求/响应模型
+# 请求/响应模型 - 简化响应模型
 class ChatRequest(BaseModel):
     """聊天请求模型"""
     query: str = Field(..., description="用户问题", min_length=1, max_length=1000)
@@ -42,11 +44,9 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = Field(0.7, description="生成温度", ge=0, le=2)
 
 class ChatResponse(BaseModel):
-    """聊天响应模型"""
+    """聊天响应模型 - 只返回前端需要的字段"""
     response: str = Field(..., description="Agent的回答")
     session_id: str = Field(..., description="会话ID")
-    intent: Optional[str] = Field(None, description="识别到的意图")
-    processing_time: float = Field(..., description="处理时间(秒)")
 
 # 定义 lifespan 上下文管理器
 @asynccontextmanager
@@ -117,61 +117,62 @@ async def lifespan(app: FastAPI):
 
     logger.info("✅ 资源清理完成")
 
-# 创建 FastAPI 应用，使用 lifespan 参数 - 【只修改这里】
+# 创建 FastAPI 应用，使用 lifespan 参数
 app = FastAPI(
-    title="智能文档问答助手 API",  # 改成中文标题
-    description="基于 LangGraph 的智能文档问答系统，支持私有知识库问答和多轮对话",  # 简短的描述
+    title="智能文档问答助手",
+    description="基于 LangGraph 的智能文档问答系统",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan
 )
 
-# 【只添加 summary 和 description 参数，不改变函数逻辑】
-@app.get("/",
-         summary="API 首页",
-         description="返回 API 的基本信息和可用接口列表")
-async def root():
-    """根路径，返回API信息"""
-    return {
-        "name": "LangGraph Agent API",
-        "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "chat": "/chat - POST",
-            "search": "/search - POST",
-            "health": "/health - GET",
-            "docs": "/docs - GET"
-        }
-    }
+# 添加 CORS 中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# 【只添加 summary 和 description 参数】
-@app.get("/health",
-         summary="健康检查",
-         description="检查 API 及所有依赖服务（Milvus、Redis）的运行状态")
+# 【新增】挂载静态文件目录
+static_path = Path(__file__).parent.parent.parent / "static"
+if static_path.exists():
+    app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+    logger.info(f"✅ 静态文件目录挂载: {static_path}")
+else:
+    logger.warning(f"⚠️ 静态文件目录不存在: {static_path}")
+
+# 【修改】根路径现在返回漂亮的聊天界面
+@app.get("/", include_in_schema=False)  # include_in_schema=False 表示不在API文档中显示
+async def serve_chat():
+    """提供聊天界面"""
+    index_path = static_path / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    else:
+        return {"message": "聊天界面文件不存在，请先创建 static/index.html"}
+
+# 【保留】健康检查接口，但可以在API文档中隐藏
+@app.get("/health", include_in_schema=True)
 async def health_check():
     """健康检查接口"""
     return {
         "status": "healthy",
-        "timestamp": time.time(),
-        "services": {
-            "api": "up",
-            "milvus": "up" if vector_store else "down",
-            "redis": "up"
-        }
+        "timestamp": time.time()
     }
 
-# 【只添加 summary 和 description 参数】
-@app.post("/chat",
-          response_model=ChatResponse,
-          summary="对话接口",
-          description="发送用户问题，获取 Agent 的回答。支持多轮对话（使用相同的 session_id）")
+@app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
     聊天接口
     发送用户问题，获取 Agent 的回答
     """
     start_time = time.time()
+    logger.info(f"=== 新请求 ===")
+    logger.info(f"Session ID: {request.session_id}")
+    logger.info(f"Query: {request.query}")
 
     if not agent:
         raise HTTPException(status_code=503, detail="Agent 未初始化")
@@ -185,6 +186,7 @@ async def chat(request: ChatRequest):
                 "thread_id": request.session_id or f"session_{time.time()}"
             }
         }
+        logger.info(f"Thread ID: {config['configurable']['thread_id']}")
 
         # 调用 Agent
         result = agent.invoke(
@@ -192,18 +194,19 @@ async def chat(request: ChatRequest):
             config
         )
 
+        if "messages" in result:
+            logger.info(f"返回的消息历史长度: {len(result['messages'])}")
+
         # 提取响应
         response_text = result["messages"][-1].content
-        intent = result.get("intent", "unknown")
 
         process_time = time.time() - start_time
         logger.info(f"处理完成，耗时: {process_time:.2f}秒")
 
+        # 返回简化后的响应
         return ChatResponse(
             response=response_text,
-            session_id=config["configurable"]["thread_id"],
-            intent=intent,
-            processing_time=process_time
+            session_id=config["configurable"]["thread_id"]
         )
 
     except Exception as e:

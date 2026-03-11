@@ -3,7 +3,7 @@ LangGraph 图构建器
 """
 
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.memory import MemorySaver
 from .state import AgentState
 from .nodes.intent import IntentNode
 from .nodes.retrieval import RetrievalNode
@@ -71,5 +71,5 @@ class AgentGraphBuilder:
         self._add_edges()
 
         # 添加检查点实现记忆
-        checkpointer = InMemorySaver()
+        checkpointer = MemorySaver()
         return self.graph.compile(checkpointer=checkpointer)

@@ -23,10 +23,28 @@ class IntentNode:
         )
         logger.info(f"意图识别节点初始化，使用 Ollama 地址: http://localhost:11435/v1")
 
+
     def __call__(self, state: AgentState) -> dict:
         query = state["query"]
 
+        # 添加记忆相关问题的特殊判断
+        memory_related = [
+            "我叫什么", "我的名字", "我说过什么", "刚才", "之前",
+            "我刚刚", "我上一句", "还记得我吗"
+        ]
+
+        for keyword in memory_related:
+            if keyword in query:
+                logger.info(f"检测到记忆相关问题，强制使用chat模式")
+                return {
+                    "intent": "chat",
+                    "confidence": 0.9,
+                    "steps": ["intent_recognition", "memory_override"]
+                }
+
+        # 原有意图识别逻辑
         system_prompt = """你是一个意图识别专家。分析用户问题的意图，返回JSON格式。
+
 
 可选的意图：
 - rag_query: 需要查询知识库（技术问题、文档查询、事实性问题）
