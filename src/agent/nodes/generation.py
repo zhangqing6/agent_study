@@ -49,80 +49,35 @@ class GenerationNode:
         intent = state["intent"]
         docs = state.get("retrieved_docs", [])
 
-        # 获取历史消息
+        # 从 state 中获取完整的消息历史 - 这是关键！
         messages_history = state.get("messages", [])
 
+        logger.info(f"生成回答 - 意图: {intent}, 检索文档数: {len(docs)}")
         logger.info(f"历史消息数: {len(messages_history)}")
 
+        # 如果有历史，打印前两条看看
+        if messages_history:
+            logger.info(f"历史消息示例: {messages_history[0].content[:50]}...")
+
+        # 构建消息列表
+        if intent == "rag_query" and docs:
+            # RAG 模式：基于知识库回答，不带历史（因为知识库内容会覆盖）
+            context = "\n\n".join(docs)
+            system_prompt = """你是一个知识助手。请基于提供的知识库内容回答问题。"""
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=f"知识库内容：\n{context}\n\n问题：{query}")
+            ]
+        else:
+            # 对话模式：必须带上历史！
+            messages = list(messages_history)  # 👈 把历史加进来
+            messages.append(HumanMessage(content=query))
+            logger.info(f"对话模式，总共 {len(messages)} 条消息")
+
         try:
-            # 判断是否是记忆相关问题
-            memory_keywords = ["我叫什么", "我的名字", "我刚才", "之前", "上一句", "还记得"]
-            is_memory_question = any(kw in query for kw in memory_keywords)
-
-            if is_memory_question:
-                # 记忆问题：完全忽略知识库，只用历史
-                logger.info("检测到记忆问题，忽略知识库，只用历史")
-
-                # 构建历史对话
-                history_text = ""
-                for msg in messages_history:
-                    if hasattr(msg, 'type'):
-                        if msg.type == "human":
-                            history_text += f"用户：{msg.content}\n"
-                        elif msg.type == "ai":
-                            history_text += f"助手：{msg.content}\n"
-
-                prompt = f"""以下是我们的对话历史：
-    {history_text}
-
-    用户现在问：{query}
-
-    请根据对话历史回答。如果用户在历史中告诉过你名字或其他信息，请直接使用这些信息回答。
-    不要编造，如果历史中没有相关信息，就如实说不知道。
-    """
-                messages = [HumanMessage(content=prompt)]
-
-            elif intent == "rag_query" and docs:
-                # RAG模式：但弱化提示词，允许结合自身知识
-                context = "\n\n".join(docs)
-
-                # 修改后的提示词 - 优先级：历史 > 知识库 > 模型知识
-                system_prompt = """你是一个智能助手。回答问题时请遵循以下优先级：
-    1. 如果问题涉及对话历史（如问名字、问之前说过什么），优先使用对话历史回答
-    2. 如果提供了知识库内容，可以参考知识库
-    3. 最后可以用你自己的知识补充
-
-    注意：不要因为有了知识库就忽略对话历史！
-    """
-                user_prompt = f"对话历史已提供给你。\n\n知识库内容：\n{context}\n\n用户问题：{query}"
-
-                messages = [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=user_prompt)
-                ]
-                logger.info("使用改进的RAG模式（兼顾历史）")
-
-            else:
-                # 普通对话：只带历史
-                history_text = ""
-                for msg in messages_history:
-                    if hasattr(msg, 'type'):
-                        if msg.type == "human":
-                            history_text += f"用户：{msg.content}\n"
-                        elif msg.type == "ai":
-                            history_text += f"助手：{msg.content}\n"
-
-                prompt = f"""以下是我们的对话历史：
-    {history_text}
-
-    用户现在问：{query}
-
-    请根据对话历史回答。"""
-                messages = [HumanMessage(content=prompt)]
-                logger.info("使用普通对话模式")
-
             response = self.llm.invoke(messages)
 
+            # 返回时，LangGraph 会自动把这次对话加到 state['messages'] 中
             return {
                 "messages": [AIMessage(content=response.content)],
                 "steps": ["response_generation"]
