@@ -59,75 +59,84 @@ Ollama（用于本地模型推理）
 ## 1. 安装依赖
 
 ### 克隆项目
+```
 git clone <https://github.com/zhangqing6/agent_study.git>
 cd langgraph-agent
-
+```
 ### 创建虚拟环境
+```
 python -m venv venv
 
 source venv/bin/activate  # Linux/Mac
 
  或 .\venv\Scripts\activate  # Windows
-
+```
 ### 安装依赖
+```
 pip install -r requirements.txt
+```
 ## 2. 启动依赖服务
 
 
 
 启动 Milvus、Redis 等
-
+```
 docker-compose up -d
-
+```
 查看服务状态
-
+```
 docker-compose ps
+```
 ## 3. 启动 Ollama 模型服务
 
 ### 下载模型（首次需下载，约4.7GB）
+```
 ollama pull qwen2.5:7b
-
+```
 ### 启动 Ollama 服务（指定端口）
+```
 export OLLAMA_HOST=127.0.0.1:11435  # Linux/Mac
 
  或 $env:OLLAMA_HOST = "127.0.0.1:11435"  # Windows
 
 ollama serve
+```
 ## 4. 启动 API 服务
 
 ### 新开终端
+```
 cd langgraph-agent
 
 source venv/bin/activate
 
 python -m src.api.main
-
+```
 访问 API 文档：http://localhost:8000/docs
 
 或者http://localhost:8000前端界面
 
 ## 5. 一键启动
-
+```
 python manage.py start
-
+```
 ### 📚 添加知识库文档
 
 将文档放入 src/data/raw/ 目录，
 
 然后运行：
-
+```
 python add_docs.py
-
+```
 支持格式：.txt、.pdf、.md
 
 ### 🧪 API 测试示例
 #### 健康检查
-
+```
 curl http://localhost:8000/health
-
+```
 #### 聊天对话
 
-
+```
 curl -X POST "http://localhost:8000/chat" \
 
   -H "Content-Type: application/json" \
@@ -136,39 +145,41 @@ curl -X POST "http://localhost:8000/chat" \
     "query": "公司的年假制度是什么？",
     "session_id": "user123"
   }'
-
+```
 #### 多轮对话测试
-
+```
 第1轮：{"query": "我叫小明", "session_id": "test1"}
 
 第2轮：{"query": "我叫什么名字", "session_id": "test1"}
 
 第3轮：{"query": "我刚才问了什么", "session_id": "test1"}
-
+```
 ### 🔧 配置说明
 
 #### 环境变量 (.env)
 
  ##### Milvus配置
-
+```
 MILVUS_HOST=localhost
 
 MILVUS_PORT=19530
 
 COLLECTION_NAME=knowledge_base
-
+```
  ##### Redis配置
+```
 REDIS_HOST=localhost
 
 REDIS_PORT=6379
-
+```
  ##### Ollama配置
+```
 OLLAMA_BASE_URL=http://localhost:11435
 
 LLM_MODEL=qwen2.5:7b
 
 EMBEDDING_MODEL=BAAI/bge-m3
-
+```
 #### 端口说明
 ```
 服务	        端口	      说明
@@ -180,19 +191,25 @@ Redis	    6379	 缓存服务
 ### 🛠️ 管理命令
 
 ####  一键启动所有服务
+```
 python manage.py start
-
+```
 #### 查看服务状态
+```
 python manage.py status
-
+```
 #### 添加文档到知识库
+```
 python manage.py add-docs
-
+```
 #### 查看知识库统计
+```
 python manage.py list-docs
-
+```
 #### 停止所有服务
+```
 python manage.py stop
+```
 ### 🎯 核心功能实现
 功能	实现方式	代码位置
 
