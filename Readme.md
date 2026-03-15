@@ -1,8 +1,8 @@
 LangGraph Agent - 智能文档问答系统
 基于 LangGraph 和 RAG架构 的智能文档问答系统，支持私有知识库检索、多轮对话记忆、本地大模型推理，提供完整的 API 服务与容器化部署方案。
-```
+
 演示视频：【LangGraph Agent - 智能文档问答系统】 https://www.bilibili.com/video/BV1i3wgzkEY7/?share_source=copy_web&vd_source=44cb484ede030bd06d3f1307adebee80
-```
+
 ✨ 核心特性
 🤖 AI Agent 智能决策：基于 LangGraph 实现意图识别-知识检索-答案生成三节点状态图，Agent 可自主判断调用知识库还是直接对话
 
