@@ -118,7 +118,7 @@ python -m src.api.main
 ```
 访问 API 文档：http://localhost:8000/docs
 
-或者http://localhost:8000前端界面
+或者： http://localhost:8000  前端界面
 
 ## 5. 一键启动
 ```
