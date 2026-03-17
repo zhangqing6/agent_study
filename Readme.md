@@ -187,7 +187,7 @@ EMBEDDING_MODEL=BAAI/bge-m3
 ```
 #### 端口说明
 ```
-服务	        端口	      说明
+服务	        端口	        说明
 API 服务 	8000	 主服务入口
 Ollama   	11435	 LLM 推理服务
 Milvus	    19530    向量数据库
